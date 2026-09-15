@@ -101,6 +101,19 @@
     @keyframes canopyLight{to{opacity:.42;transform:translate3d(1.5%,-1%,0)}}
     @media(max-width:820px){.scroll-film video{object-position:58% center}.film-status{right:7px}.hero{background-image:linear-gradient(90deg,rgba(2,13,10,.85),rgba(2,13,10,.2)),linear-gradient(0deg,rgba(4,17,14,.9),transparent 36%)}}
     @media(prefers-reduced-motion:reduce){.scroll-film::after{animation:none}.film-status{display:none}}
+
+    /* Directional woodpecker: front view while descending, back view while climbing. */
+    .bird-rail{position:fixed;left:clamp(8px,2vw,28px);top:42%;z-index:15;width:156px;height:156px;opacity:0;pointer-events:none;transform:translate3d(-28px,0,0);transition:opacity .9s ease 1.5s,transform .9s cubic-bezier(.2,.8,.2,1) 1.5s;will-change:transform}
+    body.entered .bird-rail{opacity:.94;transform:translate3d(0,0,0)}
+    .bird-flight{position:absolute;inset:0;will-change:transform,opacity;transform-origin:52% 52%}
+    .bird-sprite{position:absolute;inset:0;background-image:url('assets/woodpecker-direction-sprite.webp');background-repeat:no-repeat;background-size:600% 200%;background-position:0 100%;animation:birdFlap .66s steps(6,end) infinite;filter:drop-shadow(0 12px 16px rgba(0,0,0,.42)) drop-shadow(0 0 8px rgba(103,217,202,.24));will-change:background-position}
+    .bird-flight.up .bird-sprite{background-position-y:0;animation-duration:.54s}
+    .bird-flight.down .bird-sprite{background-position-y:100%;animation-duration:.5s}
+    .bird-flight.idle .bird-sprite{background-position-y:100%;animation-duration:.66s}
+    .bird-signal{position:absolute;left:12px;top:50%;width:96px;height:1px;background:linear-gradient(90deg,transparent,rgba(103,217,202,.62),transparent);filter:blur(.2px) drop-shadow(0 0 5px var(--cyan));transform:translateX(-70%);opacity:.32}
+    @keyframes birdFlap{to{background-position-x:120%}}
+    @media(max-width:820px){.bird-rail{left:0;top:46%;width:116px;height:116px;opacity:.82}}
+    @media(prefers-reduced-motion:reduce){.bird-sprite{animation:none}.bird-rail{top:48%}}
   </style>
 </head>
 <body>
@@ -111,6 +124,7 @@
   <div class="scroll-film" aria-hidden="true"><video id="forest-film" autoplay muted loop playsinline preload="auto" poster="assets/forest-scroll-poster.jpg"><source src="assets/forest-scroll.mp4" type="video/mp4"></video></div>
   <div class="film-status mono" aria-hidden="true"><div class="rail"></div><b>FOREST SEQUENCE</b></div>
   <div class="light-orb" id="light-orb" aria-hidden="true"></div>
+  <div class="bird-rail" aria-hidden="true"><i class="bird-signal"></i><div class="bird-flight idle" id="cyber-bird"><span class="bird-sprite"></span></div></div>
   <nav class="nav" aria-label="メインナビゲーション">
     <div class="nav-inner wrap">
       <a class="brand mono" href="#top"><i></i>NAOKI AIGANE</a>
@@ -178,6 +192,11 @@
     const syncFilm=()=>{const y=scrollY,delta=y-lastFilmScroll,p=filmProgress();lastFilmScroll=y;document.documentElement.style.setProperty('--film-progress',p.toFixed(4));if(!filmReady||!delta)return;forestFilm.pause();const span=Math.max(.1,forestFilm.duration-.08);let next=forestFilm.currentTime+delta*.006;next=((next%span)+span)%span;forestFilm.currentTime=next;clearTimeout(filmIdleTimer);filmIdleTimer=setTimeout(playForestFilm,110)};
     forestFilm.addEventListener('loadedmetadata',()=>{filmReady=true;forestFilm.currentTime=.01;if(document.body.classList.contains('entered'))playForestFilm();else forestFilm.pause()},{once:true});
     addEventListener('scroll',syncFilm,{passive:true});addEventListener('resize',syncFilm,{passive:true});syncFilm();
+    const cyberBird=document.getElementById('cyber-bird');let birdLastY=scrollY,birdLastTime=performance.now(),birdMode='idle',birdTargetY=0,birdTargetX=0,birdTargetScale=1,birdY=0,birdX=0,birdScale=1,birdVY=0,birdVX=0,birdVS=0,birdStopTimer=0;
+    const setBirdMode=mode=>{if(mode===birdMode)return;birdMode=mode;cyberBird.className='bird-flight '+mode;if(mode==='up'){birdTargetY=-116;birdTargetX=70;birdTargetScale=.66}else if(mode==='down'){birdTargetY=116;birdTargetX=58;birdTargetScale=1.13}else{birdTargetY=0;birdTargetX=0;birdTargetScale=1}};
+    const animateBirdScroll=()=>{const now=performance.now(),current=scrollY,delta=current-birdLastY,elapsed=Math.max(16,now-birdLastTime);birdLastY=current;birdLastTime=now;if(Math.abs(delta)>.4){const mode=delta<0?'up':'down',force=Math.min(1.5,Math.abs(delta)/elapsed);setBirdMode(mode);if(mode==='up'){birdTargetY=-92-force*34;birdTargetX=54+force*28;birdTargetScale=.72-force*.1}else{birdTargetY=88+force*34;birdTargetX=45+force*25;birdTargetScale=1.06+force*.08}}clearTimeout(birdStopTimer);birdStopTimer=setTimeout(()=>setBirdMode('idle'),220)};
+    const birdPhysics=t=>{if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;birdVY+=(birdTargetY-birdY)*.017;birdVY*=.86;birdY+=birdVY;birdVX+=(birdTargetX-birdX)*.017;birdVX*=.86;birdX+=birdVX;birdVS+=(birdTargetScale-birdScale)*.02;birdVS*=.84;birdScale+=birdVS;const bob=birdMode==='idle'?Math.sin(t*.0024)*7+Math.sin(t*.0049)*1.5:Math.sin(t*.006)*2,bank=Math.max(-7,Math.min(7,birdVY*.7));cyberBird.style.transform='translate3d('+birdX.toFixed(2)+'px,'+(birdY+bob).toFixed(2)+'px,0) scale('+birdScale.toFixed(3)+') rotate('+bank.toFixed(2)+'deg)';cyberBird.style.opacity=String(Math.max(.42,Math.min(1,birdScale)));requestAnimationFrame(birdPhysics)};
+    addEventListener('scroll',animateBirdScroll,{passive:true});requestAnimationFrame(birdPhysics);
     const io=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target)}}),{threshold:.12});document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
     const orb=document.getElementById('light-orb');if(matchMedia('(pointer:fine)').matches){addEventListener('pointermove',e=>{orb.style.left=e.clientX+'px';orb.style.top=e.clientY+'px'},{passive:true})}
     const canvas=document.getElementById('cyber-layer'),ctx=canvas.getContext('2d');let particles=[],raf;
